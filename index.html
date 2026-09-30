@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ONIONIQ — AI-Based Onion Quality Assessment & Grading System</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            gov: {
+              navy: '#0f172a',
+              blue: '#1e3a8a',
+              accent: '#0284c7',
+              gold: '#d97706',
+              bg: '#f8fafc'
+            },
+            defect: {
+              healthy: '#16a34a',
+              damaged: '#ea580c',
+              rotten: '#dc2626',
+              sprouted: '#eab308',
+              undersized: '#64748b'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- QR Code Generator -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <!-- HTML2PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+  <style>
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; }
+    .canvas-container { position: relative; display: inline-block; width: 100%; max-height: 500px; overflow: hidden; background: #000; border-radius: 0.5rem; }
+    .canvas-container img { width: 100%; height: 100%; object-fit: contain; }
+    .canvas-container canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: auto; }
+    @media print {
+      body * { visibility: hidden; }
+      #printable-report, #printable-report * { visibility: visible; }
+      #printable-report { position: absolute; left: 0; top: 0; width: 100%; }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+  <!-- TOP GOV BANNER -->
+  <div class="bg-gov-navy text-white text-xs py-1.5 px-4 flex justify-between items-center border-b border-slate-700">
+    <div class="flex items-center space-x-2">
+      <span class="bg-amber-600 text-white font-bold px-1.5 py-0.5 rounded text-[10px]">GOVT OF INDIA</span>
+      <span class="text-slate-300 hidden sm:inline">Ministry of Consumer Affairs, Food & Public Distribution | Dept of Consumer Affairs (DoCA)</span>
+      <span class="text-slate-300 sm:hidden">DoCA | Govt of India</span>
+    </div>
+    <div class="flex items-center space-x-3 text-slate-300">
+      <!-- 3-WAY LANGUAGE SWITCHER BUTTON (English -> हिंदी -> मराठी) -->
+      <button onclick="app.cycleLanguage()" class="bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold px-3 py-1 rounded text-[11px] border border-slate-600 flex items-center gap-1.5 shadow-sm">
+        <i data-lucide="languages" class="w-3.5 h-3.5"></i> <span id="lang-toggle-label">🌐 English</span>
+      </button>
+
+      <button onclick="app.openDocsModal()" class="hover:text-amber-400 underline flex items-center gap-1 hidden md:flex">
+        <i data-lucide="code" class="w-3 h-3"></i> System Architecture & DB
+      </button>
+    </div>
+  </div>
+
+  <!-- MAIN NAVIGATION HEADER -->
+  <header id="app-header" class="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-16 items-center">
+        <!-- Logo -->
+        <div class="flex items-center space-x-3 cursor-pointer" onclick="app.navigate('dashboard')">
+          <div class="w-10 h-10 rounded-lg bg-gov-blue text-white flex items-center justify-center font-black text-xl shadow-md">
+            🧅
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="font-extrabold text-xl tracking-tight text-gov-navy">ONION<span class="text-gov-accent">IQ</span></span>
+              <span class="text-[10px] bg-sky-100 text-sky-800 font-semibold px-2 py-0.5 rounded-full border border-sky-200">v2.1 AI-Assisted</span>
+            </div>
+            <p id="header-subtitle" class="text-[11px] text-slate-500 font-medium">Onion Quality Assessment & Grading System</p>
+          </div>
+        </div>
+
+        <!-- Navigation Links -->
+        <nav id="nav-links" class="hidden md:flex space-x-1 font-medium text-sm">
+          <button onclick="app.navigate('dashboard')" class="nav-btn px-3 py-2 rounded-md hover:bg-slate-100 text-slate-700 flex items-center gap-1.5" data-page="dashboard">
+            <i data-lucide="layout-dashboard" class="w-4 h-4"></i> <span data-i18n="dashboard">Dashboard</span>
+          </button>
+          <button onclick="app.navigate('new-inspection')" class="nav-btn px-3 py-2 rounded-md hover:bg-slate-100 text-slate-700 flex items-center gap-1.5" data-page="new-inspection">
+            <i data-lucide="scan-line" class="w-4 h-4"></i> <span data-i18n="newInspection">New Inspection</span>
+          </button>
+          <button onclick="app.navigate('history')" class="nav-btn px-3 py-2 rounded-md hover:bg-slate-100 text-slate-700 flex items-center gap-1.5" data-page="history">
+            <i data-lucide="history" class="w-4 h-4"></i> <span data-i18n="history">History & Reports</span>
+          </button>
+          <button id="admin-nav-btn" onclick="app.navigate('admin')" class="nav-btn px-3 py-2 rounded-md hover:bg-slate-100 text-slate-700 flex items-center gap-1.5" data-page="admin">
+            <i data-lucide="bar-chart-3" class="w-4 h-4"></i> <span data-i18n="adminAnalytics">Admin Analytics</span>
+          </button>
+        </nav>
+
+        <!-- Right User Role Info -->
+        <div class="flex items-center space-x-3">
+          <div id="user-badge" class="flex items-center gap-2 bg-slate-100 border border-slate-200 py-1 px-3 rounded-full text-xs">
+            <span id="user-role-tag" class="font-bold px-1.5 py-0.5 rounded text-[10px] bg-blue-600 text-white">INSPECTOR</span>
+            <span id="user-name-display" class="font-medium text-slate-700">Rajesh Kumar</span>
+          </div>
+
+          <button onclick="app.toggleRole()" class="text-xs bg-gov-navy text-white px-3 py-1.5 rounded-md font-medium hover:bg-slate-800 transition flex items-center gap-1 shadow-sm">
+            <i data-lucide="repeat" class="w-3.5 h-3.5"></i> <span data-i18n="switchRole">Switch Role</span>
+          </button>
+
+          <button onclick="app.logout()" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg" title="Logout">
+            <i data-lucide="log-out" class="w-5 h-5"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTAINER -->
+  <main id="app-content" class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <!-- Views rendered dynamically via JavaScript -->
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="bg-gov-navy text-slate-400 text-xs py-6 border-t border-slate-800 mt-auto">
+    <div class="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
+      <div>
+        <p class="font-semibold text-slate-200">ONIONIQ — AI-Assisted Onion Quality Assessment & Grading System</p>
+        <p class="text-slate-400 text-[11px]">Department of Consumer Affairs (DoCA) | Smart India Hackathon 2026 Prototype</p>
+      </div>
+      <div class="flex items-center space-x-4">
+        <button onclick="app.openConfigModal()" class="hover:text-amber-400 flex items-center gap-1">
+          <i data-lucide="settings" class="w-3.5 h-3.5"></i> <span data-i18n="gradingCriteria">Grading Criteria Rules</span>
+        </button>
+        <span>•</span>
+        <button onclick="app.openDocsModal()" class="hover:text-amber-400 flex items-center gap-1">
+          <i data-lucide="database" class="w-3.5 h-3.5"></i> System Architecture & DB Spec
+        </button>
+      </div>
+    </div>
+  </footer>
+
+  <!-- MODALS CONTAINER -->
+  <div id="modal-container"></div>
+
+  <!-- APPLICATION JAVASCRIPT BUNDLE -->
+  <script type="module">
+    import { ApiService } from './src/services/api.js';
+    import { AIService } from './src/services/aiService.js';
+    import { GradingEngine } from './src/services/gradingEngine.js';
+    import { DEMO_PRESETS } from './src/data/demoSamples.js';
+    import { DATABASE_TABLES } from './src/data/databaseSchema.js';
+
+    // TRILINGUAL TRANSLATION DICTIONARY (ENGLISH, HINDI, MARATHI)
+    const TRANSLATIONS = {
+      en: {
+        subtitle: 'Onion Quality Assessment & Grading System',
+        dashboard: 'Dashboard',
+        newInspection: 'New Inspection',
+        history: 'History & Reports',
+        adminAnalytics: 'Admin Analytics',
+        switchRole: 'Switch Role',
+        startInspection: '+ Start New Inspection',
+        totalInspections: 'Total Inspections',
+        gradeABatches: 'Grade A Batches',
+        ursBatches: 'URS Batches',
+        gradingCriteria: 'Grading Criteria Rules',
+        healthy: 'Healthy / Acceptable',
+        damaged: 'Damaged',
+        rotten: 'Rotten',
+        sprouted: 'Sprouted',
+        undersized: 'Undersized'
+      },
+      hi: {
+        subtitle: 'प्याज गुणवत्ता मूल्यांकन एवं ग्रेडिंग प्रणाली',
+        dashboard: 'डैशबोर्ड',
+        newInspection: 'नई जांच शुरू करें',
+        history: 'इतिहास एवं रिपोर्ट्स',
+        adminAnalytics: 'प्रशासनिक विश्लेषण',
+        switchRole: 'भूमिका बदलें',
+        startInspection: '+ नई प्याज जांच शुरू करें',
+        totalInspections: 'कुल निरीक्षण (बैच)',
+        gradeABatches: 'ग्रेड ए गुणवत्ता बैच',
+        ursBatches: 'यूआरएस (सब-स्टैंडर्ड) बैच',
+        gradingCriteria: 'ग्रेडिंग नियम एवं मानक',
+        healthy: 'स्वस्थ / उत्तम प्याज',
+        damaged: 'क्षतिग्रस्त प्याज',
+        rotten: 'सड़ा हुआ प्याज',
+        sprouted: 'अंकुरित प्याज',
+        undersized: 'छोटे आकार का प्याज'
+      },
+      mr: {
+        subtitle: 'कांदा गुणवत्ता मूल्यमापन आणि प्रतवारी प्रणाली',
+        dashboard: 'डॅशबोर्ड',
+        newInspection: 'नवीन तपासणी',
+        history: 'इतिहास आणि अहवाल',
+        adminAnalytics: 'प्रशासकीय विश्लेषण',
+        switchRole: 'भूमिका बदला',
+        startInspection: '+ नवीन कांदा तपासणी सुरू करा',
+        totalInspections: 'एकूण तपासणी (बॅच)',
+        gradeABatches: 'ग्रेड ए गुणवत्ता बॅच',
+        ursBatches: 'यूआरएस (सब-स्टँडर्ड) बॅच',
+        gradingCriteria: 'प्रतवारीचे नियम व निकष',
+        healthy: 'उत्तम / निरोगी कांदा',
+        damaged: 'खराब / दुखापत झालेला',
+        rotten: 'सडलेला कांदा',
+        sprouted: 'पालवी फुटलेला (अंकुरित)',
+        undersized: 'लहान आकाराचा कांदा'
+      }
+    };
+
+    class OnionIQApp {
+      constructor() {
+        this.currentUser = ApiService.getCurrentUser();
+        this.currentPage = 'dashboard';
+        this.currentInspection = null;
+        this.aiResult = null;
+        this.chartInstances = {};
+        this.currentLang = 'en'; // 'en', 'hi', 'mr'
+        this.webcamStream = null;
+      }
+
+      init() {
+        ApiService.initStorage();
+        this.updateHeaderUI();
+        this.navigate('dashboard');
+        lucide.createIcons();
+      }
+
+      cycleLanguage() {
+        if (this.currentLang === 'en') this.currentLang = 'hi';
+        else if (this.currentLang === 'hi') this.currentLang = 'mr';
+        else this.currentLang = 'en';
+
+        const labels = { en: '🌐 English', hi: '🇮🇳 हिंदी', mr: '🚩 मराठी' };
+        document.getElementById('lang-toggle-label').innerText = labels[this.currentLang];
+        this.applyLanguage();
+        this.navigate(this.currentPage);
+      }
+
+      applyLanguage() {
+        const t = TRANSLATIONS[this.currentLang];
+        document.getElementById('header-subtitle').innerText = t.subtitle;
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+          const key = el.dataset.i18n;
+          if (t[key]) el.innerText = t[key];
+        });
+      }
+
+      updateHeaderUI() {
+        const roleTag = document.getElementById('user-role-tag');
+        const nameDisplay = document.getElementById('user-name-display');
+
+        if (this.currentUser) {
+          roleTag.innerText = this.currentUser.role;
+          roleTag.className = `font-bold px-1.5 py-0.5 rounded text-[10px] ${this.currentUser.role === 'ADMIN' ? 'bg-purple-600 text-white' : 'bg-blue-600 text-white'}`;
+          nameDisplay.innerText = this.currentUser.name;
+        }
+      }
+
+      toggleRole() {
+        if (this.currentUser.role === 'INSPECTOR') {
+          ApiService.login('admin@onioniq.demo', 'demo', 'ADMIN').then(res => {
+            this.currentUser = res.data.user;
+            this.updateHeaderUI();
+            this.navigate('admin');
+          });
+        } else {
+          ApiService.login('inspector@onioniq.demo', 'demo', 'INSPECTOR').then(res => {
+            this.currentUser = res.data.user;
+            this.updateHeaderUI();
+            this.navigate('dashboard');
+          });
+        }
+      }
+
+      logout() {
+        ApiService.logout();
+        this.renderLogin();
+      }
+
+      navigate(page, params = {}) {
+        this.currentPage = page;
+        this.stopWebcam();
+        const main = document.getElementById('app-content');
+        main.innerHTML = '';
+
+        document.querySelectorAll('.nav-btn').forEach(btn => {
+          if (btn.dataset.page === page) {
+            btn.className = 'nav-btn px-3 py-2 rounded-md bg-slate-100 text-gov-blue font-bold flex items-center gap-1.5';
+          } else {
+            btn.className = 'nav-btn px-3 py-2 rounded-md hover:bg-slate-100 text-slate-700 font-medium flex items-center gap-1.5';
+          }
+        });
+
+        switch (page) {
+          case 'login': this.renderLogin(); break;
+          case 'dashboard': this.renderInspectorDashboard(); break;
+          case 'new-inspection': this.renderNewInspectionWizard(params.step || 1); break;
+          case 'detection-result': this.renderDetectionResultPage(); break;
+          case 'report': this.renderReportPage(params.batchId); break;
+          case 'history': this.renderHistoryPage(); break;
+          case 'admin': this.renderAdminDashboard(); break;
+          default: this.renderInspectorDashboard(); break;
+        }
+
+        setTimeout(() => {
+          lucide.createIcons();
+          this.applyLanguage();
+        }, 50);
+      }
+
+      // LOGIN PAGE
+      renderLogin() {
+        document.getElementById('app-header').style.display = 'none';
+        const main = document.getElementById('app-content');
+        main.innerHTML = `
+          <div class="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+            <div class="max-w-md w-full space-y-8 bg-white p-8 rounded-2xl shadow-xl border border-slate-200">
+              <div class="text-center">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gov-blue text-white text-3xl font-black shadow-lg mb-4">
+                  🧅
+                </div>
+                <h1 class="text-3xl font-extrabold text-gov-navy tracking-tight">ONION<span class="text-gov-accent">IQ</span></h1>
+                <p class="mt-2 text-sm text-slate-600 font-medium">${TRANSLATIONS[this.currentLang].subtitle}</p>
+                <p class="mt-1 text-xs text-slate-400">Department of Consumer Affairs (DoCA)</p>
+              </div>
+
+              <div class="space-y-4 pt-4">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Email / Inspector ID</label>
+                  <input id="login-email" type="email" value="inspector@onioniq.demo" class="w-full px-4 py-2.5 rounded-lg border border-slate-300 text-sm">
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Password</label>
+                  <input id="login-password" type="password" value="••••••••" class="w-full px-4 py-2.5 rounded-lg border border-slate-300 text-sm">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 pt-2">
+                  <button onclick="app.submitLogin('INSPECTOR')" class="w-full bg-gov-blue hover:bg-blue-900 text-white font-semibold py-2.5 px-4 rounded-lg shadow-md transition text-xs flex items-center justify-center gap-1.5">
+                    <i data-lucide="user-check" class="w-4 h-4"></i> Login as Inspector
+                  </button>
+                  <button onclick="app.submitLogin('ADMIN')" class="w-full bg-purple-700 hover:bg-purple-900 text-white font-semibold py-2.5 px-4 rounded-lg shadow-md transition text-xs flex items-center justify-center gap-1.5">
+                    <i data-lucide="shield-check" class="w-4 h-4"></i> Login as Admin
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      submitLogin(role) {
+        const email = document.getElementById('login-email').value || (role === 'ADMIN' ? 'admin@onioniq.demo' : 'inspector@onioniq.demo');
+        ApiService.login(email, 'demo', role).then(res => {
+          this.currentUser = res.data.user;
+          document.getElementById('app-header').style.display = 'block';
+          this.updateHeaderUI();
+          this.navigate(role === 'ADMIN' ? 'admin' : 'dashboard');
+        });
+      }
+
+      // INSPECTOR DASHBOARD
+      renderInspectorDashboard() {
+        document.getElementById('app-header').style.display = 'block';
+        const batches = ApiService.getBatches();
+        const totalCount = batches.length;
+        const gradeACount = batches.filter(b => b.gradeAPercent >= 80).length;
+        const ursCount = totalCount - gradeACount;
+        const lang = this.currentLang;
+
+        const titles = {
+          en: 'Inspector Quality Dashboard',
+          hi: 'निरीक्षक गुणवत्ता डैशबोर्ड',
+          mr: 'कांदा निरीक्षक गुणवत्ता डॅशबोर्ड'
+        };
+
+        const main = document.getElementById('app-content');
+        main.innerHTML = `
+          <div class="space-y-6">
+            <div class="bg-gradient-to-r from-gov-navy to-slate-800 rounded-2xl p-6 text-white shadow-lg flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div>
+                <span class="bg-sky-500/20 text-sky-300 text-xs font-semibold px-2.5 py-1 rounded-full border border-sky-400/30">Procurement Inspection Portal</span>
+                <h1 class="text-2xl font-bold mt-2">${titles[lang]}</h1>
+                <p class="text-slate-300 text-xs mt-1">${this.currentUser ? this.currentUser.centerName : 'Kolhapur Procurement Center'}</p>
+              </div>
+              <button onclick="app.startNewInspection()" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-5 py-3 rounded-xl shadow-lg transition flex items-center gap-2 text-sm">
+                <i data-lucide="plus-circle" class="w-5 h-5"></i> <span data-i18n="startInspection">+ Start New Inspection</span>
+              </button>
+            </div>
+
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                <span class="text-xs font-semibold text-slate-500 uppercase" data-i18n="totalInspections">Total Inspections</span>
+                <div class="text-3xl font-extrabold text-slate-900 mt-2">${totalCount}</div>
+              </div>
+              <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                <span class="text-xs font-semibold text-slate-500 uppercase" data-i18n="gradeABatches">Grade A Batches</span>
+                <div class="text-3xl font-extrabold text-emerald-600 mt-2">${gradeACount}</div>
+              </div>
+              <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                <span class="text-xs font-semibold text-slate-500 uppercase" data-i18n="ursBatches">URS Batches</span>
+                <div class="text-3xl font-extrabold text-amber-600 mt-2">${ursCount}</div>
+              </div>
+              <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                <span class="text-xs font-semibold text-slate-500 uppercase">Verification Rate</span>
+                <div class="text-3xl font-extrabold text-indigo-600 mt-2">100%</div>
+              </div>
+            </div>
+
+            <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+              <div class="p-5 border-b border-slate-200 flex justify-between items-center">
+                <h2 class="font-bold text-slate-900">Recent Procurement Inspections</h2>
+                <button onclick="app.navigate('history')" class="text-xs text-gov-blue hover:underline font-semibold">View All →</button>
+              </div>
+
+              <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr class="bg-slate-50 text-slate-500 font-semibold text-xs border-b border-slate-200 uppercase">
+                      <th class="py-3 px-4">Batch ID</th>
+                      <th class="py-3 px-4">Date</th>
+                      <th class="py-3 px-4">Center</th>
+                      <th class="py-3 px-4 text-center">Sample Count</th>
+                      <th class="py-3 px-4 text-center">Grade A %</th>
+                      <th class="py-3 px-4 text-center">URS %</th>
+                      <th class="py-3 px-4 text-center">Status</th>
+                      <th class="py-3 px-4 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100">
+                    ${batches.map(b => `
+                      <tr class="hover:bg-slate-50">
+                        <td class="py-3 px-4 font-bold text-gov-navy">${b.batchId}</td>
+                        <td class="py-3 px-4 text-xs text-slate-500">${b.date}</td>
+                        <td class="py-3 px-4 text-xs">${b.centerName}</td>
+                        <td class="py-3 px-4 text-center font-bold">${b.totalSample}</td>
+                        <td class="py-3 px-4 text-center font-bold text-emerald-600">${b.gradeAPercent}%</td>
+                        <td class="py-3 px-4 text-center font-bold text-amber-600">${b.ursPercent}%</td>
+                        <td class="py-3 px-4 text-center text-xs font-semibold text-sky-700">Verified</td>
+                        <td class="py-3 px-4 text-right">
+                          <button onclick="app.navigate('report', { batchId: '${b.batchId}' })" class="text-xs bg-slate-100 text-slate-700 font-semibold px-3 py-1 rounded">View Report</button>
+                        </td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      startNewInspection() {
+        const newBatch = ApiService.createNewBatch({
+          centerId: this.currentUser.centerId,
+          centerName: this.currentUser.centerName,
+          inspectorName: this.currentUser.name
+        });
+        this.currentInspection = newBatch;
+        this.navigate('new-inspection', { step: 1 });
+      }
+
+      // NEW INSPECTION WIZARD
+      renderNewInspectionWizard(step) {
+        const main = document.getElementById('app-content');
+        if (!this.currentInspection) { this.startNewInspection(); return; }
+
+        const b = this.currentInspection;
+        const lang = this.currentLang;
+
+        const headers = {
+          en: { step1: 'Step 1: Batch Details', step2: 'Step 2: Upload Onion Sample', step3: 'AI Analysis in Progress...' },
+          hi: { step1: 'चरण 1: बैच विवरण', step2: 'चरण 2: प्याज नमूना इमेज कैप्चर', step3: 'एआई कंप्यूटर विजन विश्लेषण जारी है...' },
+          mr: { step1: 'टप्पा १: बॅच तपशील', step2: 'टप्पा २: कांदा नमुना फोटो अपलोड / कॅप्चर', step3: 'AI कॉम्प्युटर व्हिजन विश्लेषण सुरू आहे...' }
+        };
+
+        main.innerHTML = `
+          <div class="max-w-4xl mx-auto space-y-6">
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+              <div class="flex items-center space-x-2 text-xs font-semibold">
+                <span class="${step >= 1 ? 'bg-gov-blue text-white' : 'bg-slate-100 text-slate-400'} w-6 h-6 rounded-full flex items-center justify-center">1</span>
+                <span>${step === 1 ? headers[lang].step1 : 'Step 1'}</span>
+                <span>/</span>
+                <span class="${step >= 2 ? 'bg-gov-blue text-white' : 'bg-slate-100 text-slate-400'} w-6 h-6 rounded-full flex items-center justify-center">2</span>
+                <span>${step === 2 ? headers[lang].step2 : 'Step 2'}</span>
+                <span>/</span>
+                <span class="${step >= 3 ? 'bg-gov-blue text-white' : 'bg-slate-100 text-slate-400'} w-6 h-6 rounded-full flex items-center justify-center">3</span>
+                <span>Step 3</span>
+              </div>
+              <span class="text-xs font-bold text-gov-accent">Batch ID: ${b.batchId}</span>
+            </div>
+
+            ${step === 1 ? `
+              <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+                <h2 class="text-xl font-bold text-gov-navy">${headers[lang].step1}</h2>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Batch ID</label>
+                    <input type="text" value="${b.batchId}" readonly class="w-full bg-slate-50 p-2.5 rounded border text-sm font-bold text-gov-navy">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Procurement Center</label>
+                    <select id="center-select" class="w-full p-2.5 rounded border text-sm font-medium">
+                      ${ApiService.getProcurementCenters().map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Inspector Name</label>
+                    <input type="text" value="${b.inspectorName}" readonly class="w-full bg-slate-50 p-2.5 rounded border text-sm">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Farmer / Supplier ID</label>
+                    <input id="farmer-id-input" type="text" value="${b.farmerId}" class="w-full p-2.5 rounded border text-sm">
+                  </div>
+                </div>
+
+                <div class="pt-4 border-t flex justify-end">
+                  <button onclick="app.saveStep1AndContinue()" class="bg-gov-blue text-white font-bold px-6 py-3 rounded-xl text-sm">
+                    Continue to Image Capture →
+                  </button>
+                </div>
+              </div>
+            ` : step === 2 ? `
+              <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+                <h2 class="text-xl font-bold text-gov-navy">${headers[lang].step2}</h2>
+
+                <!-- SIH DEMO PRESETS -->
+                <div class="bg-amber-50 border border-amber-200 p-4 rounded-xl">
+                  <div class="flex items-center gap-2 text-amber-800 font-bold text-xs uppercase">
+                    <i data-lucide="sparkles" class="w-4 h-4"></i> SIH 2026 Judge Instant Load Feature
+                  </div>
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                    <button onclick="app.loadPreset('preset1')" class="bg-white border border-amber-300 text-amber-900 p-3 rounded-lg text-left text-xs font-bold shadow-sm">
+                      🟢 DEMO 1: High Quality Batch (82% Grade A)
+                    </button>
+                    <button onclick="app.loadPreset('preset2')" class="bg-white border border-amber-300 text-amber-900 p-3 rounded-lg text-left text-xs font-bold shadow-sm">
+                      🔴 DEMO 2: High Defect Batch (52% URS)
+                    </button>
+                  </div>
+                </div>
+
+                <!-- WEBCAM LIVE CAMERA OPTION -->
+                <div class="bg-slate-100 p-4 rounded-xl border border-slate-300 text-center space-y-3">
+                  <button onclick="app.startWebcam()" class="bg-slate-800 hover:bg-slate-900 text-white font-bold px-4 py-2 rounded-lg text-xs flex items-center gap-1.5 mx-auto shadow">
+                    <i data-lucide="camera" class="w-4 h-4"></i> 📷 Open Device Live Camera
+                  </button>
+
+                  <div id="webcam-container" class="hidden space-y-3">
+                    <video id="webcam-video" autoplay playsinline class="max-h-64 mx-auto rounded-lg border-2 border-gov-accent shadow-md bg-black"></video>
+                    <button onclick="app.captureWebcamPhoto()" class="bg-emerald-600 text-white font-bold px-5 py-2 rounded-lg text-xs flex items-center gap-1.5 mx-auto">
+                      <i data-lucide="aperture" class="w-4 h-4"></i> Capture Snapshot
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Upload Area -->
+                <div id="upload-box" class="border-2 border-dashed border-slate-300 hover:border-gov-accent rounded-2xl p-6 text-center bg-slate-50 cursor-pointer" onclick="document.getElementById('file-input').click()">
+                  <input type="file" id="file-input" accept="image/*" class="hidden" onchange="app.handleFileSelect(event)">
+                  <div id="upload-preview-container" class="space-y-2">
+                    <div class="w-10 h-10 rounded-full bg-sky-100 text-sky-600 flex items-center justify-center mx-auto">
+                      <i data-lucide="upload-cloud" class="w-5 h-5"></i>
+                    </div>
+                    <span class="font-bold text-xs text-gov-navy">Drag & drop onion image or click to browse</span>
+                  </div>
+                </div>
+
+                <div class="pt-4 border-t flex justify-between">
+                  <button onclick="app.navigate('new-inspection', { step: 1 })" class="text-slate-500 text-sm font-semibold">← Back</button>
+                  <button id="analyze-btn" onclick="app.runAnalysis()" class="bg-gov-blue text-white font-bold px-6 py-3 rounded-xl text-sm opacity-50 cursor-not-allowed" disabled>
+                    <i data-lucide="cpu" class="w-4 h-4 inline"></i> Run AI Analysis
+                  </button>
+                </div>
+              </div>
+            ` : `
+              <div class="bg-white p-8 rounded-2xl border border-slate-200 text-center space-y-6">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-sky-100 text-sky-600 animate-pulse">
+                  <i data-lucide="cpu" class="w-8 h-8"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-gov-navy">${headers[lang].step3}</h2>
+
+                <div class="max-w-md mx-auto space-y-3 text-left">
+                  <div class="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                    <div id="ai-progress-bar" class="bg-gov-accent h-full w-0 transition-all duration-300"></div>
+                  </div>
+                  <p id="ai-progress-status" class="text-xs font-semibold text-gov-navy text-center">Processing image...</p>
+                </div>
+
+                <div id="ai-steps-log" class="bg-slate-50 p-4 rounded-xl text-left text-xs font-mono space-y-1 text-slate-600 border border-slate-200 max-w-lg mx-auto"></div>
+              </div>
+            `}
+          </div>
+        `;
+      }
+
+      async startWebcam() {
+        const webcamContainer = document.getElementById('webcam-container');
+        const video = document.getElementById('webcam-video');
+        try {
+          this.webcamStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+          video.srcObject = this.webcamStream;
+          webcamContainer.classList.remove('hidden');
+        } catch (e) {
+          alert('Webcam access error: ' + e.message);
+        }
+      }
+
+      captureWebcamPhoto() {
+        const video = document.getElementById('webcam-video');
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        const dataUrl = canvas.toDataURL('image/jpeg');
+        this.currentInspection.sampleImageUrl = dataUrl;
+        this.currentInspection.demoType = 'preset1';
+
+        const preview = document.getElementById('upload-preview-container');
+        preview.innerHTML = `
+          <div class="relative max-h-64 mx-auto overflow-hidden rounded-lg shadow-md border border-slate-300">
+            <img src="${dataUrl}" class="object-cover w-full h-48">
+            <div class="absolute bottom-2 left-2 bg-emerald-600 text-white text-xs px-2.5 py-1 rounded font-semibold">
+              Live Camera Photo Captured
+            </div>
+          </div>
+        `;
+
+        this.stopWebcam();
+        const btn = document.getElementById('analyze-btn');
+        btn.disabled = false;
+        btn.className = "bg-gov-blue hover:bg-blue-900 text-white font-bold px-6 py-3 rounded-xl shadow-md transition flex items-center gap-2 text-sm";
+      }
+
+      stopWebcam() {
+        if (this.webcamStream) {
+          this.webcamStream.getTracks().forEach(track => track.stop());
+          this.webcamStream = null;
+        }
+      }
+
+      saveStep1AndContinue() {
+        const farmerId = document.getElementById('farmer-id-input').value;
+        const centerId = document.getElementById('center-select').value;
+        const center = ApiService.getProcurementCenters().find(c => c.id === centerId);
+
+        this.currentInspection.farmerId = farmerId;
+        this.currentInspection.centerId = centerId;
+        this.currentInspection.centerName = center.name;
+
+        ApiService.saveBatch(this.currentInspection);
+        this.renderNewInspectionWizard(2);
+      }
+
+      loadPreset(presetId) {
+        const preset = DEMO_PRESETS[presetId];
+        this.currentInspection.demoType = presetId;
+        this.currentInspection.sampleImageUrl = preset.imageUrl;
+
+        const preview = document.getElementById('upload-preview-container');
+        preview.innerHTML = `
+          <div class="relative max-h-64 mx-auto overflow-hidden rounded-lg shadow-md border border-slate-300">
+            <img src="${preset.imageUrl}" class="object-cover w-full h-48">
+            <div class="absolute bottom-2 left-2 bg-slate-900/80 text-white text-xs px-2.5 py-1 rounded font-semibold">
+              Selected: ${preset.name}
+            </div>
+          </div>
+        `;
+
+        const btn = document.getElementById('analyze-btn');
+        btn.disabled = false;
+        btn.className = "bg-gov-blue hover:bg-blue-900 text-white font-bold px-6 py-3 rounded-xl shadow-md transition flex items-center gap-2 text-sm";
+      }
+
+      handleFileSelect(event) {
+        const file = event.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            this.currentInspection.sampleImageUrl = e.target.result;
+            this.currentInspection.demoType = 'preset1';
+
+            const preview = document.getElementById('upload-preview-container');
+            preview.innerHTML = `
+              <div class="relative max-h-64 mx-auto overflow-hidden rounded-lg shadow-md border border-slate-300">
+                <img src="${e.target.result}" class="object-cover w-full h-48">
+                <div class="absolute bottom-2 left-2 bg-slate-900/80 text-white text-xs px-2.5 py-1 rounded font-semibold">
+                  Custom Sample Uploaded
+                </div>
+              </div>
+            `;
+
+            const btn = document.getElementById('analyze-btn');
+            btn.disabled = false;
+            btn.className = "bg-gov-blue hover:bg-blue-900 text-white font-bold px-6 py-3 rounded-xl shadow-md transition flex items-center gap-2 text-sm";
+          };
+          reader.readAsDataURL(file);
+        }
+      }
+
+      async runAnalysis() {
+        this.renderNewInspectionWizard(3);
+        const progressBar = document.getElementById('ai-progress-bar');
+        const progressStatus = document.getElementById('ai-progress-status');
+        const stepsLog = document.getElementById('ai-steps-log');
+
+        const presetId = this.currentInspection.demoType || 'preset1';
+
+        const result = await AIService.analyzeImage({
+          imageUrl: this.currentInspection.sampleImageUrl,
+          demoPresetId: presetId,
+          onProgress: (stage) => {
+            const pct = Math.round((stage.step / 6) * 100);
+            progressBar.style.width = pct + '%';
+            progressStatus.innerText = stage.label;
+
+            const logLine = document.createElement('div');
+            logLine.innerText = `[STAGE ${stage.step}/6] ${stage.label}`;
+            stepsLog.appendChild(logLine);
+          }
+        });
+
+        this.aiResult = result;
+        const grading = GradingEngine.evaluateGrading(result.counts);
+
+        this.currentInspection = {
+          ...this.currentInspection,
+          totalSample: result.counts.totalSample,
+          healthy: result.counts.healthy,
+          damaged: result.counts.damaged,
+          rotten: result.counts.rotten,
+          sprouted: result.counts.sprouted,
+          undersized: result.counts.undersized,
+          gradeAPercent: grading.gradeAPercent,
+          ursPercent: grading.ursPercent,
+          boundingBoxes: result.boundingBoxes,
+          status: 'PENDING_VERIFICATION'
+        };
+
+        ApiService.saveBatch(this.currentInspection);
+        this.navigate('detection-result');
+      }
+
+      // AI DETECTION RESULT & CANVAS OVERLAY PAGE
+      renderDetectionResultPage() {
+        const main = document.getElementById('app-content');
+        const b = this.currentInspection;
+        if (!b) { this.navigate('dashboard'); return; }
+
+        const grading = GradingEngine.evaluateGrading({
+          healthy: b.healthy,
+          damaged: b.damaged,
+          rotten: b.rotten,
+          sprouted: b.sprouted,
+          undersized: b.undersized,
+          totalSample: b.totalSample
+        });
+
+        main.innerHTML = `
+          <div class="space-y-6">
+            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div>
+                <span class="bg-amber-100 text-amber-900 text-xs font-bold px-2.5 py-0.5 rounded">Prototype AI Analysis</span>
+                <h1 class="text-2xl font-extrabold text-gov-navy mt-1">AI Detection & Quality Assessment</h1>
+              </div>
+              <button onclick="app.openVerificationModal()" class="bg-gov-blue text-white font-bold px-5 py-2.5 rounded-xl text-xs">
+                ✎ Inspector Verification
+              </button>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div class="lg:col-span-2 bg-white p-5 rounded-2xl border border-slate-200 space-y-4">
+                <div class="flex justify-between items-center">
+                  <h3 class="font-bold text-sm">Visual Detection Overlay</h3>
+                  <span class="text-xs">Total: <strong>${b.totalSample} onions</strong></span>
+                </div>
+                <div class="canvas-container border">
+                  <img id="onion-img-source" src="${b.sampleImageUrl}" onload="app.drawBoundingBoxes()">
+                  <canvas id="detection-canvas"></canvas>
+                </div>
+              </div>
+
+              <div class="space-y-6">
+                <div class="bg-white p-5 rounded-2xl border space-y-4">
+                  <h3 class="font-bold text-sm">Quality & Grading Assessment</h3>
+                  <div class="grid grid-cols-2 gap-3 text-center">
+                    <div class="bg-emerald-50 p-4 rounded-xl border border-emerald-200">
+                      <span class="text-xs font-bold text-emerald-800">Grade A %</span>
+                      <div class="text-3xl font-extrabold text-emerald-600 mt-1">${grading.gradeAPercent}%</div>
+                    </div>
+                    <div class="bg-amber-50 p-4 rounded-xl border border-amber-200">
+                      <span class="text-xs font-bold text-amber-800">URS %</span>
+                      <div class="text-3xl font-extrabold text-amber-600 mt-1">${grading.ursPercent}%</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="bg-white p-5 rounded-2xl border">
+                  <h3 class="font-bold text-sm">Defect Distribution</h3>
+                  <div class="h-48"><canvas id="defect-donut-chart"></canvas></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-gov-navy text-white p-6 rounded-2xl flex justify-between items-center">
+              <div>
+                <h3 class="text-lg font-bold">Confirm AI Assessment or Tweak Counts</h3>
+              </div>
+              <div class="flex items-center gap-3">
+                <button onclick="app.saveVerification(false)" class="bg-emerald-500 text-slate-950 font-bold px-5 py-3 rounded-xl text-xs">
+                  ✓ Confirm AI Result
+                </button>
+                <button onclick="app.openVerificationModal()" class="bg-amber-500 text-slate-950 font-bold px-5 py-3 rounded-xl text-xs">
+                  ✎ Modify Result
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+
+        setTimeout(() => {
+          this.drawBoundingBoxes();
+          this.renderDonutChart(b);
+        }, 100);
+      }
+
+      drawBoundingBoxes() {
+        const canvas = document.getElementById('detection-canvas');
+        const img = document.getElementById('onion-img-source');
+        if (!canvas || !img) return;
+
+        canvas.width = img.clientWidth;
+        canvas.height = img.clientHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const boxes = this.currentInspection.boundingBoxes || DEMO_PRESETS['preset1'].boxes;
+        const colors = { HEALTHY: '#16a34a', DAMAGED: '#ea580c', ROTTEN: '#dc2626', SPROUTED: '#eab308', UNDERSIZED: '#64748b' };
+
+        boxes.forEach(box => {
+          const x = (box.x / 100) * canvas.width;
+          const y = (box.y / 100) * canvas.height;
+          const w = (box.w / 100) * canvas.width;
+          const h = (box.h / 100) * canvas.height;
+          const color = colors[box.type] || '#16a34a';
+
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 2.5;
+          ctx.strokeRect(x, y, w, h);
+
+          ctx.fillStyle = color;
+          ctx.fillRect(x, Math.max(0, y - 18), w, 18);
+
+          ctx.fillStyle = '#ffffff';
+          ctx.font = 'bold 10px sans-serif';
+          ctx.fillText(box.label || box.type, x + 4, Math.max(12, y - 4));
+        });
+      }
+
+      renderDonutChart(b) {
+        const ctx = document.getElementById('defect-donut-chart');
+        if (!ctx) return;
+        if (this.chartInstances.donut) this.chartInstances.donut.destroy();
+
+        this.chartInstances.donut = new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: ['Healthy', 'Damaged', 'Rotten', 'Sprouted', 'Undersized'],
+            datasets: [{
+              data: [b.healthy, b.damaged, b.rotten, b.sprouted, b.undersized],
+              backgroundColor: ['#16a34a', '#ea580c', '#dc2626', '#eab308', '#64748b']
+            }]
+          },
+          options: { responsive: true, maintainAspectRatio: false }
+        });
+      }
+
+      openVerificationModal() {
+        const b = this.currentInspection;
+        const container = document.getElementById('modal-container');
+
+        container.innerHTML = `
+          <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div class="bg-white max-w-lg w-full rounded-2xl shadow-2xl border overflow-hidden">
+              <div class="bg-gov-navy text-white p-5 flex justify-between items-center">
+                <h3 class="font-bold text-lg">Inspector Count Verification</h3>
+                <button onclick="app.closeModal()" class="text-slate-400">✕</button>
+              </div>
+
+              <div class="p-6 space-y-3 text-sm">
+                <div class="flex justify-between items-center"><label>Healthy:</label><input id="edit-healthy" type="number" value="${b.healthy}" onchange="app.recalculateModalGrade()" class="w-24 p-1 border text-center font-bold"></div>
+                <div class="flex justify-between items-center"><label>Damaged:</label><input id="edit-damaged" type="number" value="${b.damaged}" onchange="app.recalculateModalGrade()" class="w-24 p-1 border text-center font-bold"></div>
+                <div class="flex justify-between items-center"><label>Rotten:</label><input id="edit-rotten" type="number" value="${b.rotten}" onchange="app.recalculateModalGrade()" class="w-24 p-1 border text-center font-bold"></div>
+                <div class="flex justify-between items-center"><label>Sprouted:</label><input id="edit-sprouted" type="number" value="${b.sprouted}" onchange="app.recalculateModalGrade()" class="w-24 p-1 border text-center font-bold"></div>
+                <div class="flex justify-between items-center"><label>Undersized:</label><input id="edit-undersized" type="number" value="${b.undersized}" onchange="app.recalculateModalGrade()" class="w-24 p-1 border text-center font-bold"></div>
+
+                <div class="bg-slate-50 p-3 rounded flex justify-between text-xs">
+                  <div>Grade A: <strong id="modal-grade-a" class="text-emerald-600">${b.gradeAPercent}%</strong></div>
+                  <div>URS: <strong id="modal-urs" class="text-amber-600">${b.ursPercent}%</strong></div>
+                </div>
+              </div>
+
+              <div class="p-4 bg-slate-50 border-t flex justify-end gap-2">
+                <button onclick="app.closeModal()" class="px-3 py-2 text-xs">Cancel</button>
+                <button onclick="app.saveVerification(true)" class="bg-gov-blue text-white font-bold px-4 py-2 text-xs rounded">Save Verification</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      recalculateModalGrade() {
+        const h = parseInt(document.getElementById('edit-healthy').value) || 0;
+        const d = parseInt(document.getElementById('edit-damaged').value) || 0;
+        const r = parseInt(document.getElementById('edit-rotten').value) || 0;
+        const s = parseInt(document.getElementById('edit-sprouted').value) || 0;
+        const u = parseInt(document.getElementById('edit-undersized').value) || 0;
+
+        const grading = GradingEngine.evaluateGrading({ healthy: h, damaged: d, rotten: r, sprouted: s, undersized: u });
+        document.getElementById('modal-grade-a').innerText = grading.gradeAPercent + '%';
+        document.getElementById('modal-urs').innerText = grading.ursPercent + '%';
+      }
+
+      saveVerification(isModified) {
+        const b = this.currentInspection;
+        let counts = { healthy: b.healthy, damaged: b.damaged, rotten: b.rotten, sprouted: b.sprouted, undersized: b.undersized };
+
+        if (isModified && document.getElementById('edit-healthy')) {
+          counts = {
+            healthy: parseInt(document.getElementById('edit-healthy').value) || 0,
+            damaged: parseInt(document.getElementById('edit-damaged').value) || 0,
+            rotten: parseInt(document.getElementById('edit-rotten').value) || 0,
+            sprouted: parseInt(document.getElementById('edit-sprouted').value) || 0,
+            undersized: parseInt(document.getElementById('edit-undersized').value) || 0
+          };
+        }
+
+        const updated = ApiService.verifyAndSaveInspection(b.batchId, counts, isModified);
+        this.currentInspection = updated;
+        this.closeModal();
+        this.navigate('report', { batchId: b.batchId });
+      }
+
+      closeModal() {
+        document.getElementById('modal-container').innerHTML = '';
+      }
+
+      // DIGITAL QUALITY REPORT PAGE WITH TRILINGUAL FARMER WHATSAPP/SMS NOTIFICATION
+      renderReportPage(batchId) {
+        const b = ApiService.getBatchById(batchId) || this.currentInspection;
+        if (!b) { this.navigate('dashboard'); return; }
+
+        const main = document.getElementById('app-content');
+
+        main.innerHTML = `
+          <div class="max-w-4xl mx-auto space-y-6">
+            <div class="bg-white p-4 rounded-xl border flex justify-between items-center">
+              <button onclick="app.navigate('dashboard')" class="text-xs font-semibold">← Back</button>
+              <div class="flex items-center gap-2">
+                <button onclick="app.openFarmerSmsModal('${b.batchId}')" class="bg-emerald-600 text-white font-bold px-3 py-2 rounded text-xs flex items-center gap-1">
+                  <i data-lucide="message-square" class="w-4 h-4"></i> 📱 Send SMS / WhatsApp to Farmer
+                </button>
+                <button onclick="window.print()" class="bg-slate-800 text-white font-bold px-3 py-2 rounded text-xs">Print</button>
+                <button onclick="app.downloadPdf()" class="bg-gov-blue text-white font-bold px-3 py-2 rounded text-xs">PDF</button>
+              </div>
+            </div>
+
+            <div id="printable-report" class="bg-white p-8 rounded-2xl border-2 border-slate-300 space-y-6">
+              <div class="border-b-2 border-slate-800 pb-4 text-center">
+                <div class="text-xs font-bold text-amber-700 uppercase">Ministry of Consumer Affairs, Food & Public Distribution</div>
+                <h1 class="text-xl font-black text-gov-navy uppercase">Department of Consumer Affairs (DoCA)</h1>
+                <p class="text-xs text-slate-600">AI-Assisted Onion Quality Assessment & Standardized Grading Certificate</p>
+              </div>
+
+              <div class="grid grid-cols-2 md:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-xl border text-xs">
+                <div><span class="text-slate-500">Batch ID:</span><div class="font-bold text-gov-navy">${b.batchId}</div></div>
+                <div><span class="text-slate-500">Center:</span><div class="font-semibold">${b.centerName}</div></div>
+                <div><span class="text-slate-500">Inspector:</span><div class="font-semibold">${b.inspectorName}</div></div>
+                <div><span class="text-slate-500">Date:</span><div class="font-semibold">${b.date}</div></div>
+              </div>
+
+              <table class="w-full text-xs text-left border-collapse">
+                <thead><tr class="bg-gov-navy text-white"><th class="p-2">Category</th><th class="p-2 text-center">Count</th><th class="p-2 text-center">%</th></tr></thead>
+                <tbody class="divide-y text-slate-700">
+                  <tr><td class="p-2 font-semibold text-emerald-700">Healthy</td><td class="p-2 text-center">${b.healthy}</td><td class="p-2 text-center">${((b.healthy/b.totalSample)*100).toFixed(1)}%</td></tr>
+                  <tr><td class="p-2 font-semibold text-orange-700">Damaged</td><td class="p-2 text-center">${b.damaged}</td><td class="p-2 text-center">${((b.damaged/b.totalSample)*100).toFixed(1)}%</td></tr>
+                  <tr><td class="p-2 font-semibold text-red-700">Rotten</td><td class="p-2 text-center">${b.rotten}</td><td class="p-2 text-center">${((b.rotten/b.totalSample)*100).toFixed(1)}%</td></tr>
+                  <tr><td class="p-2 font-semibold text-yellow-700">Sprouted</td><td class="p-2 text-center">${b.sprouted}</td><td class="p-2 text-center">${((b.sprouted/b.totalSample)*100).toFixed(1)}%</td></tr>
+                  <tr><td class="p-2 font-semibold text-slate-700">Undersized</td><td class="p-2 text-center">${b.undersized}</td><td class="p-2 text-center">${((b.undersized/b.totalSample)*100).toFixed(1)}%</td></tr>
+                </tbody>
+              </table>
+
+              <div class="grid grid-cols-2 gap-4 border-2 border-slate-800 p-4 rounded-xl text-center">
+                <div class="bg-emerald-50 p-2 rounded"><span class="text-xs font-bold text-emerald-900">Grade A Quality</span><div class="text-2xl font-black text-emerald-600">${b.gradeAPercent}%</div></div>
+                <div class="bg-amber-50 p-2 rounded"><span class="text-xs font-bold text-amber-900">URS (Sub-standard)</span><div class="text-2xl font-black text-amber-600">${b.ursPercent}%</div></div>
+              </div>
+
+              <div class="pt-4 border-t flex justify-between items-end">
+                <div class="text-xs space-y-1">
+                  <div class="font-bold text-gov-navy">Verification Audit</div>
+                  <div class="text-emerald-700 font-semibold">✓ Verified by Inspector (${b.inspectorName})</div>
+                </div>
+                <div id="qrcode" class="p-2 border rounded inline-block bg-white"></div>
+              </div>
+            </div>
+          </div>
+        `;
+
+        setTimeout(() => {
+          document.getElementById('qrcode').innerHTML = '';
+          new QRCode(document.getElementById('qrcode'), {
+            text: `https://onioniq.demo/verify?batchId=${b.batchId}&gradeA=${b.gradeAPercent}`,
+            width: 80,
+            height: 80
+          });
+        }, 100);
+      }
+
+      openFarmerSmsModal(batchId) {
+        const b = ApiService.getBatchById(batchId) || this.currentInspection;
+        const container = document.getElementById('modal-container');
+
+        const msgs = {
+          en: `Dear Farmer (${b.farmerId || 'FARM-MH-9482'}), your onion batch (${b.batchId}) inspection at DoCA Procurement Center is complete.\n\n• Grade A: ${b.gradeAPercent}%\n• URS: ${b.ursPercent}%\n\nView Digital Quality Certificate: https://onioniq.demo/report/${b.batchId}`,
+          hi: `प्रिय किसान (${b.farmerId || 'FARM-MH-9482'}), उपभोक्ता मामले विभाग (DoCA) द्वारा आपकी प्याज खेप (बैच ${b.batchId}) का AI मूल्यांकन पूर्ण हुआ।\n\n• ग्रेड A: ${b.gradeAPercent}%\n• यूआरएस: ${b.ursPercent}%\n\nडिजिटल गुणवत्ता प्रमाण पत्र देखें: https://onioniq.demo/report/${b.batchId}`,
+          mr: `प्रिय शेतकरी (${b.farmerId || 'FARM-MH-9482'}), ग्राहक व्यवहार विभागाद्वारे (DoCA) आपल्या कांदा मालाचे (बॅच ${b.batchId}) AI मूल्यांकन यशस्वी झाले आहे.\n\n• ग्रेड A: ${b.gradeAPercent}%\n• यूआरएस: ${b.ursPercent}%\n\nडिजिटल गुणवत्ता प्रमाणपत्र पहा: https://onioniq.demo/report/${b.batchId}`
+        };
+
+        container.innerHTML = `
+          <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div class="bg-white max-w-md w-full rounded-2xl shadow-2xl border overflow-hidden">
+              <div class="bg-emerald-700 text-white p-4 flex justify-between items-center">
+                <h3 class="font-bold text-sm">📱 Send SMS / WhatsApp to Farmer</h3>
+                <button onclick="app.closeModal()" class="text-white">✕</button>
+              </div>
+
+              <div class="p-5 space-y-3 text-xs">
+                <div>
+                  <label class="font-semibold text-slate-700">Farmer Mobile / ID:</label>
+                  <input type="text" value="${b.farmerId || 'FARM-MH-9482'} (+91 98234-XXXXX)" class="w-full p-2 border rounded mt-1 font-bold">
+                </div>
+
+                <div>
+                  <label class="font-semibold text-slate-700">Message Language Preview:</label>
+                  <div class="flex gap-2 mt-1">
+                    <button onclick="document.getElementById('sms-preview-box').value = \`${msgs.en}\`" class="px-2 py-1 bg-slate-200 rounded font-semibold text-[11px]">English</button>
+                    <button onclick="document.getElementById('sms-preview-box').value = \`${msgs.hi}\`" class="px-2 py-1 bg-slate-200 rounded font-semibold text-[11px]">हिंदी</button>
+                    <button onclick="document.getElementById('sms-preview-box').value = \`${msgs.mr}\`" class="px-2 py-1 bg-emerald-100 text-emerald-900 rounded font-semibold text-[11px]">मराठी</button>
+                  </div>
+                  <textarea id="sms-preview-box" readonly class="w-full p-2.5 border rounded mt-2 font-sans text-slate-700 h-32 leading-relaxed bg-slate-50">${msgs[this.currentLang] || msgs.mr}</textarea>
+                </div>
+              </div>
+
+              <div class="p-4 bg-slate-50 border-t flex justify-end gap-2">
+                <button onclick="app.closeModal()" class="px-3 py-2 text-xs">Cancel</button>
+                <button onclick="app.sendSmsSimulated()" class="bg-emerald-600 text-white font-bold px-4 py-2 text-xs rounded shadow">
+                  🚀 Dispatch SMS / WhatsApp
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      sendSmsSimulated() {
+        this.closeModal();
+        alert('✅ Instant SMS & WhatsApp notification sent to Farmer in Marathi/English successfully!');
+      }
+
+      downloadPdf() {
+        const element = document.getElementById('printable-report');
+        const opt = {
+          margin:       0.5,
+          filename:     `ONIONIQ_Report_${this.currentInspection ? this.currentInspection.batchId : 'Batch'}.pdf`,
+          image:        { type: 'jpeg', quality: 0.98 },
+          html2canvas:  { scale: 2 },
+          jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+        };
+        html2pdf().set(opt).from(element).save();
+      }
+
+      renderHistoryPage() {
+        const batches = ApiService.getBatches();
+        const main = document.getElementById('app-content');
+        main.innerHTML = `
+          <div class="space-y-6">
+            <h1 class="text-2xl font-extrabold text-gov-navy">Inspection History & Reports</h1>
+            <div class="bg-white rounded-xl border overflow-hidden">
+              <table class="w-full text-left text-sm">
+                <thead><tr class="bg-slate-50 text-xs border-b"><th class="p-3">Batch ID</th><th class="p-3">Date</th><th class="p-3 text-center">Grade A %</th><th class="p-3 text-center">URS %</th><th class="p-3 text-right">Action</th></tr></thead>
+                <tbody class="divide-y">
+                  ${batches.map(b => `
+                    <tr>
+                      <td class="p-3 font-bold text-gov-navy">${b.batchId}</td>
+                      <td class="p-3 text-xs text-slate-500">${b.date}</td>
+                      <td class="p-3 text-center font-bold text-emerald-600">${b.gradeAPercent}%</td>
+                      <td class="p-3 text-center font-bold text-amber-600">${b.ursPercent}%</td>
+                      <td class="p-3 text-right"><button onclick="app.navigate('report', { batchId: '${b.batchId}' })" class="text-xs bg-gov-blue text-white px-3 py-1 rounded">View Report</button></td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;
+      }
+
+      renderAdminDashboard() {
+        const main = document.getElementById('app-content');
+        const centers = ApiService.getProcurementCenters();
+        main.innerHTML = `
+          <div class="space-y-6">
+            <div class="bg-purple-900 text-white p-6 rounded-2xl"><h1 class="text-2xl font-bold">National Procurement Center Analytics</h1></div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              ${centers.map(c => `
+                <div class="border p-4 rounded-xl bg-white">
+                  <h4 class="font-bold text-gov-navy text-sm">${c.name}</h4>
+                  <div class="mt-2 text-xs space-y-1">
+                    <div>Grade A: <strong class="text-emerald-600">${c.avgGradeA}%</strong></div>
+                    <div>URS: <strong class="text-amber-600">${c.avgURS}%</strong></div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      }
+
+      openConfigModal() {
+        const rules = ApiService.getGradingRules();
+        const container = document.getElementById('modal-container');
+        container.innerHTML = `
+          <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div class="bg-white max-w-lg w-full rounded-2xl border overflow-hidden p-6 space-y-4 text-xs">
+              <h3 class="font-bold text-lg text-gov-navy">Configure DoCA Grading Rules</h3>
+              <div><label>Min Healthy % for Grade A:</label><input id="min-healthy" type="number" value="${rules.minHealthyPercentageForGradeA}" class="w-full p-2 border rounded mt-1 font-bold"></div>
+              <div><label>Max Rotten % Allowed:</label><input id="max-rotten" type="number" value="${rules.maxRottenAllowedPercent}" class="w-full p-2 border rounded mt-1 font-bold"></div>
+              <div class="flex justify-end gap-2 pt-2"><button onclick="app.closeModal()" class="px-3 py-2">Cancel</button><button onclick="app.saveRules()" class="bg-gov-blue text-white px-4 py-2 rounded font-bold">Save Rules</button></div>
+            </div>
+          </div>
+        `;
+      }
+
+      saveRules() {
+        const newRules = {
+          ruleName: 'DoCA Standard 2026',
+          minHealthyPercentageForGradeA: parseFloat(document.getElementById('min-healthy').value),
+          maxRottenAllowedPercent: parseFloat(document.getElementById('max-rotten').value),
+          maxDamagedAllowedPercent: 10.0,
+          maxSproutedAllowedPercent: 5.0,
+          maxUndersizedAllowedPercent: 8.0
+        };
+        ApiService.updateGradingRules(newRules);
+        this.closeModal();
+      }
+
+      openDocsModal() {
+        const container = document.getElementById('modal-container');
+        container.innerHTML = `
+          <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div class="bg-white max-w-3xl w-full max-h-[80vh] rounded-2xl overflow-y-auto p-6 space-y-4 text-xs">
+              <div class="flex justify-between"><h3 class="font-bold text-lg text-gov-navy">System Architecture & Relational Database</h3><button onclick="app.closeModal()">✕</button></div>
+              <p>Frontend UI → REST API Gateway → AI Service (Mock / YOLOv8) → Grading Rule Engine → PostgreSQL</p>
+              <div class="grid grid-cols-2 gap-3">
+                ${DATABASE_TABLES.map(t => `<div class="border p-3 rounded font-mono"><strong>${t.name}</strong><p class="text-[10px] text-slate-500">${t.description}</p></div>`).join('')}
+              </div>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    window.app = new OnionIQApp();
+    window.app.init();
+  </script>
+</body>
+</html>
